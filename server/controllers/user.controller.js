@@ -6,7 +6,6 @@ import { createUser } from "../services/user.service.js";
 import redisClient from "../services/redis.service.js";
 
 
-
 export const createUserController = async (req, res) => {
   const error = validationResult(req);
 
@@ -19,6 +18,7 @@ export const createUserController = async (req, res) => {
 const user = await createUser({ username, email, password });
 
     const token = await user.generateAuthToken();
+    delete user._doc.password;
     res.status(201).json({ user, token });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -43,7 +43,11 @@ export const loginUserController = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
     const token = user.generateAuthToken();
-    res.status(200).json({ user, token });
+
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.status(200).json({ user: userObj, token });
   } catch (error) {
     res.status(500).json({ message: error.message });
     
