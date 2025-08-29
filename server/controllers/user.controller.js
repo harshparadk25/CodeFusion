@@ -2,7 +2,7 @@ import User from "../models/user.models.js";
 import dotenv from "dotenv";
 dotenv.config();
 import { validationResult } from "express-validator";
-import { createUser } from "../services/user.service.js";
+import { createUser, getAllUsers } from "../services/user.service.js";
 import redisClient from "../services/redis.service.js";
 
 
@@ -74,3 +74,14 @@ export const logoutUserController = async (req, res) => {
     
   }
 }
+
+export const getAllUsersController = async (req, res) => {
+  try {
+
+    const loggedInUser = req.user;
+    const users = await getAllUsers({loggedInUser});
+    return res.status(200).json({ users });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

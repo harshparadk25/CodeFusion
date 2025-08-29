@@ -1,33 +1,41 @@
-import React, { useState } from "react"
+import React, { useContext, useState } from "react"
 import { Label } from "../components/ui/label"
 import { Input } from "../components/ui/input"
 import { Link, useNavigate } from "react-router-dom"
 import { Button } from "../components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import axios from "../config/axios"
+import { UserContext } from "../context/user.context"
+import { toast } from "sonner"
 
 const Register = () => {
-    const [username , setUsername] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isTypingPassword, setIsTypingPassword] = useState(false)
 
+  const { setUser } = useContext(UserContext);
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     axios.post('/users/register', { username, email, password })
-    .then((res)=>{
+      .then((res) => {
         console.log(res.data);
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user)); // ✅ save user
+        setUser(res.data.user);
+        toast.success("Registration successful!");
         navigate("/login");
-    }).catch((err)=>{
+      }).catch((err) => {
+        toast.error(err.response?.data?.message || "Registration failed");
         console.error(err);
-    })
+      })
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#050510]">
-      
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#1a1a2e_0%,#050510_100%)]">
         <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#4f46e5_1px,transparent_1px),linear-gradient(to_bottom,#4f46e5_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
       </div>
@@ -38,7 +46,7 @@ const Register = () => {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="w-full max-w-md p-8 rounded-2xl backdrop-blur-xl bg-white/5 border border-cyan-400/20 shadow-[0_0_30px_rgba(56,189,248,0.25)] relative z-10"
       >
-        
+
         <div className="absolute -top-16 left-1/2 -translate-x-1/2">
           <AnimatePresence mode="wait">
             {isTypingPassword ? (
@@ -67,7 +75,7 @@ const Register = () => {
           </AnimatePresence>
         </div>
 
-        
+
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white tracking-wide">
             Welcome to <span className="text-cyan-400">CodeFusion</span>
