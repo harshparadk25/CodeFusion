@@ -5,7 +5,7 @@ import axios from "../config/axios";
 import { toast } from "sonner";
 import {initializeSocket , receiveMessage,sendMessage} from "../config/socket.js"; 
 import { UserContext } from "../context/user.context.jsx";
-import { use } from "react";
+import Markdown from "markdown-to-jsx"
 
 
 const Project = () => {
@@ -106,6 +106,12 @@ const Project = () => {
   const messageElement = document.createElement("div");
   messageElement.className =
     "message flex flex-col gap-1 p-2 m-3 bg-white/10 rounded-lg max-w-xs break-words mr-auto";
+
+    if (msg.sender._id === "ai-bot") {
+      const markDown = (<Markdown>{messageText}</Markdown>);
+      messageElement.innerHTML = `<small class="opacity-65 text-xs">${senderEmail}</small>
+      <p class="text-sm">${markDown}</p>`;
+    }
 
   messageElement.innerHTML = `
     <small class="opacity-65 text-xs">${senderEmail}</small>
