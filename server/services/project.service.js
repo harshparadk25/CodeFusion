@@ -81,3 +81,20 @@ export const addUsersToProject = async({projectId, users,userId})=>{
 
     return updatedProject;
 }
+
+
+export const getProjectById = async ({ projectId, userId }) => {
+    if (!projectId || !userId) {
+        throw new Error("Project ID and User ID are required");
+    }
+
+    try {
+        const project = await Project.findOne({
+            _id: projectId,
+            users: userId
+        }).populate("users");
+        return project;
+    } catch (error) {
+        throw error;
+    }
+};

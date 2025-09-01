@@ -5,6 +5,7 @@ import Login from "../screens/Login";
 import Register from "../screens/Register";
 import Home from "../screens/Home";
 import ProtectedRoutes from "../config/protect";
+import Project from "../screens/Project";
 
 const AnimatedRoutes = () => {
   const location = useLocation();
@@ -51,6 +52,21 @@ const AnimatedRoutes = () => {
             >
               <Register />
             </motion.div>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoutes>
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
+            >
+              <Project/>
+            </motion.div>
+            </ProtectedRoutes>
           }
         />
       </Routes>
