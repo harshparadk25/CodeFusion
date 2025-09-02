@@ -9,6 +9,8 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Project from "./models/project.model.js";
+import { generateResult } from "./services/ai.service.js";
+import { Result } from "express-validator";
 
 
 app.use(cors());
@@ -60,8 +62,13 @@ io.on("connection", (socket) => {
   console.log("🔌 A user connected:", socket.id);
   socket.join(socket.projectId._id.toString());
 
-  socket.on("project-message", (msg) => {
+  socket.on("project-message", async (msg) => {
   console.log("📩 Received from client:", msg);
+
+  const message = typeof msg.message === "string" ? msg.message.trim() : "";
+
+
+  const aiIsPresent = message.includes("@ai");
 
    const payload = {
     sender: {
@@ -71,7 +78,23 @@ io.on("connection", (socket) => {
     message: msg.message,         // only text
   };
 
+  if(aiIsPresent){
+    const prompt =message.replace("@ai","").trim();
+    const result = await generateResult(prompt);
+
+    io.to(socket.projectId._id.toString()).emit("message", {
+      sender: {
+        _id: "ai",
+        email: "AI Bot",
+      },
+      message: result
+    });
+
+    return;
+  }
   socket.to(socket.projectId._id.toString()).emit("message", payload);
+
+
 });
 
 

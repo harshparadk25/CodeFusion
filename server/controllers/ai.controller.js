@@ -8,9 +8,10 @@ export const getResult = async (req, res) => {
     }
 
     const result = await aiService.generateResult(prompt);
-    res.json({ result });
+    res.type("text/plain");
+    res.send(result);
   } catch (err) {
     console.error("AI error:", err.message);
-    res.status(500).json({ message: "Failed generating content" });
+    res.status(500).send({ message: "Failed generating content" });
   }
 };

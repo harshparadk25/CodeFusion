@@ -12,6 +12,9 @@ export const initializeSocket = (projectId)=>{
         },
         query: {
             projectId
+        },
+        auth: {
+            token: localStorage.getItem("token")
         }
     });
     return socketInstance;
