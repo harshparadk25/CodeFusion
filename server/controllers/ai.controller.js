@@ -8,7 +8,6 @@ export const getResult = async (req, res) => {
     }
 
     const result = await aiService.generateResult(prompt);
-    res.type("text/plain");
     res.send(result);
   } catch (err) {
     console.error("AI error:", err.message);
