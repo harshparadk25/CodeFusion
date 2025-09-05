@@ -134,7 +134,7 @@ const Project = () => {
   function send() {
     if (!message.trim()) return;
 
-    const isAiMessage = message.includes("ai:");
+    const isAiMessage = message.includes("@ai");
 
     const payload = {
       message: message,

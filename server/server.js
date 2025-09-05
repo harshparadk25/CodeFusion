@@ -42,7 +42,10 @@ const token = socket.handshake.auth?.token
                throw new Error("Invalid project ID");
            }
 
-           socket.projectId = await Project.findById(projectId).select("_id").lean();
+           const project = await Project.findById(projectId).select("_id").lean();
+    if (!project) return next(new Error("Project not found"));
+
+    socket.projectId = project;
 
     if (!token) throw new Error("No token provided");
 
@@ -105,7 +108,6 @@ socket.on("file-update", (data) => {
   try {
     const { fileName, content } = data;
 
-    // Broadcast to everyone in the project room except sender
     socket.to(socket.projectId._id.toString()).emit("file-updated", {
       fileName,
       content,
