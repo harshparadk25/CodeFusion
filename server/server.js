@@ -10,20 +10,20 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Project from "./models/project.model.js";
 import { generateResult } from "./services/ai.service.js";
-import { Result } from "express-validator";
+
 
 
 app.use(cors());
 
 const port = process.env.PORT || 3000;
 
-connect();
-const server = http.createServer(app);
 
+const server = http.createServer(app);
+connect();
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL || "*",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -72,10 +72,10 @@ io.on("connection", (socket) => {
 
    const payload = {
     sender: {
-      _id: socket.user._id,       // from JWT
-      email: socket.user.email,   // from JWT
+      _id: socket.user._id,       
+      email: socket.user.email,   
     },
-    message: msg.message,         // only text
+    message: msg.message,  
   };
 
   if(aiIsPresent){
@@ -83,11 +83,15 @@ io.on("connection", (socket) => {
     const result = await generateResult(prompt);
 
     io.to(socket.projectId._id.toString()).emit("message", {
+      type: "ai",
       sender: {
         _id: "ai",
         email: "AI Bot",
       },
-      message: result
+      file:{
+        name:`ai-result-${Math.floor(performance.now())}.js`,
+        content:result,
+      }
     });
 
     return;
@@ -96,6 +100,22 @@ io.on("connection", (socket) => {
 
 
 });
+
+socket.on("file-update", (data) => {
+  try {
+    const { fileName, content } = data;
+
+    // Broadcast to everyone in the project room except sender
+    socket.to(socket.projectId._id.toString()).emit("file-updated", {
+      fileName,
+      content,
+      updatedBy: socket.user.email,
+    });
+  } catch (err) {
+    console.error("File update error:", err);
+  }
+});
+
 
 
 

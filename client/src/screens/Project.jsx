@@ -31,17 +31,10 @@ const Project = () => {
   const [messages, setMessages] = useState([]);
   const [currentFile, setCurrentFile] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
+  const [isPreview, setIsPreview] = useState(true);
 
-  const [fileTree, setFileTree] = useState({
-    "app.js": {
-      content: `const express = require('express');`,
-    },
-    "package.json": {
-      content: `{
-        "name": "temp-server",
-      }`,
-    },
-  });
+
+  const [fileTree, setFileTree] = useState({});
 
   const addCollaborator = () => {
     if (!project?._id) return;
@@ -51,8 +44,12 @@ const Project = () => {
         users: Array.from(selectedUserId),
         projectId: project._id,
       })
+      .then(() => {
+        return axios.get(`/projects/get-project/${project._id}`);
+      })
       .then((res) => {
         setProject(res.data);
+        console.log(res.data);
         setIsModalOpen(false);
         toast.success("Collaborator added successfully");
       })
@@ -69,9 +66,18 @@ const Project = () => {
     const handler = (msg) => {
       try {
         const message = typeof msg === "string" ? JSON.parse(msg) : msg;
-        if (message?.sender?._id !== user._id) {
+
+        if (message?.sender?._id !== user._id && message?.sender?._id !== "ai") {
           setMessages((prev) => [...prev, message]);
         }
+
+        if (message?.type === "ai" && message.file) {
+      toast.success("AI response received");
+      setFileTree((prev) => ({
+        ...prev,
+        [message.file.name]: { content: message.file.content },
+      }));
+    }
 
         if (message.fileTree) {
           setFileTree(message.fileTree);
@@ -82,6 +88,15 @@ const Project = () => {
     };
 
     receiveMessage("message", handler);
+
+    receiveMessage("file-updated", (data) => {
+    setFileTree((prev) => ({
+      ...prev,
+      [data.fileName]: { content: data.content },
+    }));
+    toast.info(`File "${data.fileName}" updated by ${data.updatedBy}`);
+  });
+
 
     axios
       .get("/users/all")
@@ -119,13 +134,19 @@ const Project = () => {
   function send() {
     if (!message.trim()) return;
 
+    const isAiMessage = message.includes("ai:");
+
     const payload = {
       message: message,
       sender: { _id: user._id, email: user.email },
+      to: isAiMessage ? "ai" : "user",
     };
 
     sendMessage("project-message", payload);
-    setMessages((prev) => [...prev, payload]);
+
+    if (!isAiMessage) {
+      setMessages((prev) => [...prev, payload]);
+    }
     setMessage("");
   }
 
@@ -141,7 +162,7 @@ const Project = () => {
 
   return (
     <main className="h-screen w-screen flex overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
-      {/* LEFT PANEL */}
+      
       <motion.section
         initial={{ x: -200 }}
         animate={{ x: 0 }}
@@ -165,7 +186,7 @@ const Project = () => {
           </Button>
         </header>
 
-        {/* Conversation */}
+        
         <div className="conversation-area flex-grow flex flex-col relative pt-2 pb-14 overflow-hidden">
           <div
             ref={messageBox}
@@ -221,7 +242,7 @@ const Project = () => {
             ))}
           </div>
 
-          {/* Input */}
+          
           <div className="inputField w-full flex absolute bottom-0 z-20 bg-slate-800/80 backdrop-blur-lg border-t border-slate-700">
             <input
               value={message}
@@ -236,7 +257,7 @@ const Project = () => {
           </div>
         </div>
 
-        {/* Collaborator Panel */}
+       
         <AnimatePresence>
           {isSidePanelOpen && (
             <motion.div
@@ -266,7 +287,7 @@ const Project = () => {
                       <div className="aspect-square w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-full flex items-center justify-center">
                         <i className="ri-user-fill"></i>
                       </div>
-                      <h1 className="font-medium">{collaborator.email}</h1>
+                      <h1 className="font-medium text-slate-200">{collaborator.email}</h1>
                     </CardContent>
                   </Card>
                 ))}
@@ -276,7 +297,7 @@ const Project = () => {
         </AnimatePresence>
       </motion.section>
 
-      {/* RIGHT PANEL */}
+      
       <section className="right bg-slate-900/50 backdrop-blur-lg flex-grow h-full flex overflow-hidden">
         <div className="explorer h-full w-44 bg-slate-800/60 border-r border-slate-700">
           <div className="file-tree w-full p-2 flex flex-col gap-1">
@@ -313,30 +334,91 @@ const Project = () => {
                   }`}
                 >
                   <p className="font-medium text-sm">{file}</p>
+
                 </Button>
               ))}
             </div>
 
-            <div className="bottom flex-grow overflow-hidden">
-              <textarea
-                value={fileTree[currentFile]?.content || ""}
-                onChange={(e) =>
-                  setFileTree({
-                    ...fileTree,
-                    [currentFile]: {
-                      ...fileTree[currentFile],
-                      content: e.target.value,
-                    },
-                  })
-                }
-                className="w-full h-full p-3 font-mono text-sm border-none outline-none resize-none bg-slate-900 text-slate-100"
-              />
-            </div>
+            <div className="bottom flex-grow overflow-hidden relative">
+  {/* Toggle Button */}
+  <div className="absolute top-2 right-8 z-10 gap-2 flex">
+    <Button
+      size="sm"
+      variant="ghost"
+      className="bg-slate-700/50 hover:bg-slate-600 text-xs"
+      onClick={() => setIsPreview((prev) => !prev)}
+    >
+      {isPreview ? "Edit" : "Preview"}
+    </Button>
+    
+     <Button
+    size="sm"
+    variant="default"
+    className="bg-blue-600 hover:bg-blue-500 text-xs"
+    onClick={() => {
+      sendMessage("file-update", {
+        fileName: currentFile,
+        content: fileTree[currentFile]?.content || "",
+      });
+      toast.success("File saved and shared!");
+    }}
+  >
+    Save
+  </Button>
+
+  </div>
+
+
+  {(() => {
+    const content = fileTree[currentFile]?.content || "";
+    const ext = currentFile.split(".").pop();
+
+    // If preview mode ON and content looks like code → show SyntaxHighlighter
+    const looksLikeCode =
+      /\n/.test(content) || /function|const|let|import|class|;|{/.test(content);
+
+    if (isPreview && looksLikeCode) {
+      return (
+        <SyntaxHighlighter
+          language={ext}
+          style={oneDark}
+          customStyle={{
+            margin: 0,
+            height: "100%",
+            overflow: "auto",
+            fontSize: "0.9rem",
+            background: "transparent",
+          }}
+        >
+          {content}
+        </SyntaxHighlighter>
+      );
+    }
+
+    // Default: editable textarea
+    return (
+      <textarea
+        value={content}
+        onChange={(e) =>
+          setFileTree({
+            ...fileTree,
+            [currentFile]: {
+              ...fileTree[currentFile],
+              content: e.target.value,
+            },
+          })
+        }
+        className="w-full h-full p-3 font-mono text-sm border-none outline-none resize-none bg-slate-900 text-slate-100"
+      />
+    );
+  })()}
+</div>
+
           </div>
         )}
       </section>
 
-      {/* MODAL */}
+      
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -376,7 +458,7 @@ const Project = () => {
                       <div className="aspect-square w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 to-purple-600 text-white">
                         <i className="ri-user-fill"></i>
                       </div>
-                      <h1 className="font-medium">{usr.email}</h1>
+                      <h1 className="font-medium text-slate-300">{usr.email}</h1>
                     </CardContent>
                   </Card>
                 ))}

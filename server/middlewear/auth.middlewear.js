@@ -15,7 +15,7 @@ export const authUser = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-console.log("🔑 Decoded token payload:", decoded); // 👈 add this log
+console.log("🔑 Decoded token payload:", decoded); 
 
     const user = await User.findById(decoded._id || decoded.id).select("-password");
 
@@ -23,7 +23,7 @@ console.log("🔑 Decoded token payload:", decoded); // 👈 add this log
       return res.status(401).json({ message: "User not found" });
     }
 
-    req.user = user;   // 👈 always has _id
+    req.user = user;   
     next();
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });

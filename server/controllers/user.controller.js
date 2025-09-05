@@ -1,6 +1,5 @@
 import User from "../models/user.models.js";
-import dotenv from "dotenv";
-dotenv.config();
+
 import { validationResult } from "express-validator";
 import { createUser, getAllUsers } from "../services/user.service.js";
 import redisClient from "../services/redis.service.js";
