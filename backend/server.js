@@ -13,7 +13,15 @@ import { generateResult } from "./services/ai.service.js";
 
 
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      process.env.ADMIN_URL,
+      process.env.CLIENT_URL
+    ],
+    credentials: true,
+  })
+);
 
 const port = process.env.PORT || 3000;
 
@@ -23,7 +31,9 @@ connect();
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "*",
+    origin: [process.env.CLIENT_URL,
+              process.env.ADMIN_URL
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
