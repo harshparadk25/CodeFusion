@@ -23,4 +23,13 @@ router.put('/addUsers', authUser, body('projectId').isString().withMessage('Proj
 
 router.get("/get-project/:projectId", authUser, projectController.getProjectByIdController);
 
+router.delete(
+  "/:projectId/remove/:memberId",
+  authUser,
+  projectController.removeUsersFromProjectController
+);
+
+
+router.delete("/delete/:projectId", authUser, projectController.deleteProjectController);
+
 export default router;

@@ -3,9 +3,12 @@ import { Route, Routes, BrowserRouter, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import Login from "../screens/Login";
 import Register from "../screens/Register";
-import Home from "../screens/Home";
+import Dashboard from "../screens/Dashboard";
 import ProtectedRoutes from "../config/protect";
 import Project from "../screens/Project";
+import Home from "../screens/Home";
+import ProjectDetail from "../screens/ProjectDetail";
+import Content from "../screens/Content";
 
 const AnimatedRoutes = () => {
   const location = useLocation();
@@ -28,6 +31,7 @@ const AnimatedRoutes = () => {
             </ProtectedRoutes>
           }
         />
+
         <Route
           path="/login"
           element={
@@ -55,6 +59,37 @@ const AnimatedRoutes = () => {
           }
         />
         <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoutes>
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
+            >
+              <Dashboard/>
+            </motion.div>
+            </ProtectedRoutes>
+          }
+        />
+        <Route
+          path="/project/detail/:id"
+          element={
+            <ProtectedRoutes>
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
+            > 
+              <ProjectDetail/>
+            </motion.div>
+            </ProtectedRoutes>
+          }
+        />
+
+        <Route
           path="/projects"
           element={
             <ProtectedRoutes>
@@ -69,6 +104,24 @@ const AnimatedRoutes = () => {
             </ProtectedRoutes>
           }
         />
+        <Route
+          path="/repo/:projectId/files/:fileId/content"
+          element={
+            <ProtectedRoutes>
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
+            >
+              <Content />
+            </motion.div>
+            </ProtectedRoutes>
+          }
+        />
+
+
+
       </Routes>
     </AnimatePresence>
   );

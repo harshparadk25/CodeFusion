@@ -1,5 +1,5 @@
 import Project from "../models/project.model.js";
-import { addUsersToProject, createProject, getAllProjectsByUserId, getProjectById } from "../services/project.service.js";
+import { addUsersToProject, createProject, deleteProjectById, getAllProjectsByUserId, getProjectById,removeUsersFromProject} from "../services/project.service.js";
 import { validationResult } from "express-validator";
 import User from "../models/user.models.js";
 
@@ -23,7 +23,6 @@ export const createProjectController = async (req, res) => {
   } catch (error) {
     console.error("Error creating project:", error);
 
-    // Handle duplicate project name error
     if (error.message.includes("Project name must be unique")) {
       return res.status(400).json({ message: "Project name must be unique" });
     }
@@ -54,6 +53,13 @@ export const addUsersToProjectController = async (req, res) => {
 
   try {
     const { projectId, users } = req.body;
+
+    const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (project.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the owner can add collaborators" });
+    }
 
     const loggedIn = await User.findById(req.user._id);
     if (!loggedIn) {
@@ -91,3 +97,43 @@ export const getProjectByIdController= async(req,res)=>{
     
   }
 }
+
+export const removeUsersFromProjectController = async (req, res) => {
+  try {
+    const { projectId, memberId } = req.params;
+const users = [memberId];
+
+const project = await Project.findById(projectId);
+if (!project) return res.status(404).json({ message: "Project not found" });
+
+if (project.owner.toString() !== req.user._id.toString()) {
+  return res.status(403).json({ message: "Only the owner can remove collaborators" });
+}
+
+
+    const loggedIn = await User.findById(req.user._id);
+    if (!loggedIn) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const updatedProject = await removeUsersFromProject({ projectId, users, userId: loggedIn._id });
+    return res.status(200).json(updatedProject);
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+}
+
+export const deleteProjectController = async (req, res) => {
+  try {
+    const { projectId } = req.params; 
+    const loggedIn = await User.findById(req.user._id);
+    if (!loggedIn) {
+      return res.status(403).json({ message: "Forbidden" });
+    } 
+    const deletedProject = await deleteProjectById({ projectId, userId: loggedIn._id });
+
+    return res.status(200).json(deletedProject);
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }   
+};
+

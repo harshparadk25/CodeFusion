@@ -3,61 +3,107 @@ import { Button } from "../components/ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "../config/axios";
 import { toast } from "sonner";
+
 import {
   initializeSocket,
   receiveMessage,
   sendMessage,
-} from "../config/socket.js";
-import { UserContext } from "../context/user.context.jsx";
+} from "../config/socket";
+
+import { UserContext } from "../context/user.context";
+
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { X, Send, UserPlus, Users } from "lucide-react";
 
 const Project = () => {
   const location = useLocation();
+  const { user } = useContext(UserContext);
+
+  const [project, setProject] = useState(null);
   const navigate = useNavigate();
+
+  
+  const [users, setUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState(new Set());
 
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState(new Set());
-  const [project, setProject] = useState(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchedUsers, setSearchedUsers] = useState([]);
+
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [removeUserId, setRemoveUserId] = useState(null);
+  const [removeUserEmail, setRemoveUserEmail] = useState("");
+
+ 
   const [message, setMessage] = useState("");
-  const { user } = useContext(UserContext);
-  const messageBox = useRef(null);
   const [messages, setMessages] = useState([]);
+  const messageBox = useRef(null);
+
+  
+  const [fileTree, setFileTree] = useState({});
   const [currentFile, setCurrentFile] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
   const [isPreview, setIsPreview] = useState(true);
 
-
-  const [fileTree, setFileTree] = useState({});
-
+ 
   const addCollaborator = () => {
     if (!project?._id) return;
 
+    
+    const usersToAdd = Array.from(selectedUserId);
+
     axios
       .put("/projects/addUsers", {
-        users: Array.from(selectedUserId),
+        users: usersToAdd,
         projectId: project._id,
       })
-      .then(() => {
-        return axios.get(`/projects/get-project/${project._id}`);
-      })
+      .then(() => axios.get(`/projects/get-project/${project._id}`))
       .then((res) => {
         setProject(res.data);
-        console.log(res.data);
         setIsModalOpen(false);
+        
+        setSelectedUserId(new Set());
         toast.success("Collaborator added successfully");
       })
       .catch((err) => {
         console.error(err);
+        toast.error("Failed to add collaborator");
       });
   };
 
+ 
+  const handleRemoveCollaborator = (userId, email) => {
+    setRemoveUserId(userId);
+    setRemoveUserEmail(email);
+    setShowRemoveDialog(true);
+  };
+
+  const confirmRemove = () => {
+    if (!project?._id || !removeUserId) return;
+
+    axios.delete(`/projects/${project._id}/remove/${removeUserId}`)
+      .then(() => {
+        setProject((prev) => ({
+          ...prev,
+          users: prev.users.filter((u) => u._id !== removeUserId),
+        }));
+        toast.success(`Removed ${removeUserEmail}`);
+        setShowRemoveDialog(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Failed to remove user");
+      });
+  };
+
+ 
   useEffect(() => {
     if (!location.state?.project?._id) return;
 
@@ -65,101 +111,109 @@ const Project = () => {
 
     const handler = (msg) => {
       try {
-        const message = typeof msg === "string" ? JSON.parse(msg) : msg;
+        const parsed = typeof msg === "string" ? JSON.parse(msg) : msg;
 
-        if (message?.sender?._id !== user._id && message?.sender?._id !== "ai") {
-          setMessages((prev) => [...prev, message]);
+        if (
+          parsed?.sender?._id !== user._id &&
+          parsed?.sender?._id !== "ai"
+        ) {
+          setMessages((prev) => [...prev, parsed]);
         }
 
-        if (message?.type === "ai" && message.file) {
-      toast.success("AI response received");
-      setFileTree((prev) => ({
-        ...prev,
-        [message.file.name]: { content: message.file.content },
-      }));
-    }
-
-        if (message.fileTree) {
-          setFileTree(message.fileTree);
+        if (parsed?.type === "ai" && parsed.file) {
+          setFileTree((prev) => ({
+            ...prev,
+            [parsed.file.name]: { content: parsed.file.content },
+          }));
         }
+
+        if (parsed.fileTree) setFileTree(parsed.fileTree);
       } catch (err) {
-        console.error("Invalid message received:", msg, err);
+        console.error("Socket parsing error:", err);
       }
     };
 
     receiveMessage("message", handler);
 
     receiveMessage("file-updated", (data) => {
-    setFileTree((prev) => ({
-      ...prev,
-      [data.fileName]: { content: data.content },
-    }));
-    toast.info(`File "${data.fileName}" updated by ${data.updatedBy}`);
-  });
+      setFileTree((prev) => ({
+        ...prev,
+        [data.fileName]: { content: data.content },
+      }));
+      toast.info(`File "${data.fileName}" updated by ${data.updatedBy}`);
+    });
 
+    axios.get("/users/all").then((res) => setUsers(res.data.users));
 
     axios
-      .get("/users/all")
-      .then((res) => setUsers(res.data.users))
-      .catch((err) => console.error(err));
-
-    if (location.state?.project?._id) {
-      axios
-        .get(`/projects/get-project/${location.state.project._id}`)
-        .then((res) => {
-          setProject(res.data);
-        })
-        .catch((err) => console.error(err));
-    }
+      .get(`/projects/get-project/${location.state.project._id}`)
+      .then((res) => setProject(res.data))
+      .catch((err) => {
+        console.error("Failed to load project:", err);
+      });
 
     return () => {
       socket.off("message", handler);
       socket.disconnect();
     };
-  }, [location.state?.project?._id]);
+  }, [location.state?.project?._id, user?._id]);
 
-  const handleUserClick = (userId) => {
-    setSelectedUserId((prev) => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(userId)) {
-        newSelected.delete(userId);
-      } else {
-        newSelected.add(userId);
-        toast.success("User selected");
-      }
-      return newSelected;
-    });
-  };
-
-  function send() {
+  
+  const send = () => {
     if (!message.trim()) return;
 
-    const isAiMessage = message.includes("@ai");
+    const isAi = message.includes("@ai");
 
     const payload = {
-      message: message,
+      message,
       sender: { _id: user._id, email: user.email },
-      to: isAiMessage ? "ai" : "user",
+      to: isAi ? "ai" : "user",
     };
 
     sendMessage("project-message", payload);
 
-    if (!isAiMessage) {
-      setMessages((prev) => [...prev, payload]);
-    }
-    setMessage("");
-  }
+    if (!isAi) setMessages((prev) => [...prev, payload]);
 
-  function scrollToBottom() {
+    setMessage("");
+  };
+
+  useEffect(() => {
     if (messageBox.current) {
       messageBox.current.scrollTop = messageBox.current.scrollHeight;
     }
-  }
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages]);
 
+  
+  const handleUserClick = (id) => {
+    setSelectedUserId((prev) => {
+      const set = new Set(prev);
+      if (set.has(id)) set.delete(id);
+      else {
+        set.add(id);
+        toast.success("User selected");
+      }
+      return set;
+    });
+  };
+
+  
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchedUsers(users);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      axios
+        .get(`/users/search?query=${encodeURIComponent(searchQuery)}`)
+        .then((res) => setSearchedUsers(res.data.users))
+        .catch((err) => console.error("Search users error:", err));
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, users]);
+
+  
   return (
     <main className="h-screen w-screen flex overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
       
@@ -169,14 +223,16 @@ const Project = () => {
         transition={{ type: "spring", stiffness: 80 }}
         className="relative flex flex-col h-full w-96 bg-slate-900/70 backdrop-blur-lg border-r border-slate-700"
       >
-        <header className="flex justify-between items-center p-3 px-4 w-full bg-slate-800/60 backdrop-blur-lg sticky top-0 z-20 border-b border-slate-700">
+        
+        <header className="flex justify-between items-center p-3 px-4 bg-slate-800/60 border-b border-slate-700">
           <Button
             variant="ghost"
-            className="flex items-center gap-2 text-slate-200 hover:text-white"
+            className="flex items-center gap-2 text-slate-200"
             onClick={() => setIsModalOpen(true)}
           >
-            <UserPlus size={18} /> <span>Add collaborator</span>
+            <UserPlus size={18} /> Add Collaborator
           </Button>
+
           <Button
             variant="ghost"
             size="icon"
@@ -186,70 +242,68 @@ const Project = () => {
           </Button>
         </header>
 
-        
+       
         <div className="conversation-area flex-grow flex flex-col relative pt-2 pb-14 overflow-hidden">
           <div
             ref={messageBox}
-            className="message-box p-3 flex-grow flex flex-col gap-3 overflow-y-auto max-h-full 
-               [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            className="message-box p-3 flex-grow flex flex-col gap-3 overflow-y-auto"
           >
-            {messages.map((msg, index) => (
+            {messages.map((msg, i) => (
               <motion.div
-                key={index}
+                key={i}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
                 className={`${
                   msg.sender._id === "ai"
-                    ? "max-w-96 bg-purple-700/40"
-                    : "max-w-72 bg-slate-800/60"
-                } ${
-                  msg.sender._id === user?._id?.toString()
-                    ? "ml-auto"
-                    : "mr-auto"
-                } message flex flex-col p-3 rounded-2xl border border-slate-700 shadow-md`}
+                    ? "bg-purple-700/40"
+                    : "bg-slate-800/60"
+                }
+                ${
+                  msg.sender._id === user._id ? "ml-auto" : "mr-auto"
+                }
+                max-w-72 message p-3 rounded-2xl border border-slate-700`}
               >
                 <small className="opacity-70 text-xs mb-1">
-                  {msg.sender.email || "You"}
+                  {msg.sender.email}
                 </small>
 
-                <div className="text-sm prose prose-invert">
-                  <ReactMarkdown
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            {...props}
-                          >
-                            {String(children).replace(/\n$/, "")}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code className="px-1 py-0.5 bg-slate-700 rounded text-pink-300">
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {msg.message}
-                  </ReactMarkdown>
-                </div>
+                <div className="text-sm">
+  <ReactMarkdown
+    components={{
+      code({ inline, className, children, ...props }) {
+        const match = /language-(\w+)/.exec(className || "");
+
+        return !inline && match ? (
+          <SyntaxHighlighter
+            style={oneDark}
+            language={match[1]}
+            PreTag="div"
+          >
+            {String(children).replace(/\n$/, "")}
+          </SyntaxHighlighter>
+        ) : (
+          <code className="bg-slate-700 px-1 py-0.5 rounded">
+            {children}
+          </code>
+        );
+      },
+    }}
+  >
+    {msg.message}
+  </ReactMarkdown>
+</div>
+
               </motion.div>
             ))}
           </div>
 
           
-          <div className="inputField w-full flex absolute bottom-0 z-20 bg-slate-800/80 backdrop-blur-lg border-t border-slate-700">
+          <div className="inputField w-full flex absolute bottom-0 bg-slate-800/80 border-t border-slate-700">
             <input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="p-3 px-4 border-none outline-none flex-grow bg-transparent text-white placeholder:text-slate-400"
-              type="text"
-              placeholder="Type a futuristic message..."
+              className="p-3 px-4 flex-grow bg-transparent text-white outline-none"
+              placeholder="Type a message..."
             />
             <Button onClick={send} size="icon" className="m-2 rounded-full">
               <Send />
@@ -257,18 +311,17 @@ const Project = () => {
           </div>
         </div>
 
-       
+        
         <AnimatePresence>
           {isSidePanelOpen && (
             <motion.div
               initial={{ x: -400 }}
               animate={{ x: 0 }}
               exit={{ x: -400 }}
-              transition={{ type: "spring", stiffness: 80 }}
-              className="absolute inset-0 flex flex-col bg-slate-900/95 backdrop-blur-lg border-r border-slate-700 z-30"
+              className="absolute inset-0 bg-slate-900/95 border-r border-slate-700"
             >
-              <header className="flex justify-between items-center px-4 p-3 border-b border-slate-700">
-                <h1 className="font-semibold text-lg">Collaborators</h1>
+              <header className="flex justify-between p-3 border-b border-slate-700">
+                <h1 className="font-semibold">Collaborators</h1>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -277,17 +330,32 @@ const Project = () => {
                   <X />
                 </Button>
               </header>
+
               <div className="users flex flex-col gap-2 p-3">
-                {project?.users?.map((collaborator) => (
+                {project?.users?.map((collab) => (
                   <Card
-                    key={collaborator._id}
-                    className="cursor-pointer bg-slate-800/60 hover:bg-slate-700 transition-all border border-slate-700"
+                    key={collab._id}
+                    className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700"
                   >
-                    <CardContent className="flex items-center gap-4 p-3">
-                      <div className="aspect-square w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-full flex items-center justify-center">
-                        <i className="ri-user-fill"></i>
+                    <CardContent className="flex justify-between items-center p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center">
+                          <i className="ri-user-fill text-white"></i>
+                        </div>
+                        <span className="text-white">{collab.email}</span>
                       </div>
-                      <h1 className="font-medium text-slate-200">{collaborator.email}</h1>
+
+                      
+                      {String(project?.owner) === String(user?._id) && (
+                        <button
+                          onClick={() =>
+                            handleRemoveCollaborator(collab._id, collab.email)
+                          }
+                          className="text-red-400 hover:text-red-200"
+                        >
+                          <i className="ri-delete-bin-6-line text-lg"></i>
+                        </button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -298,125 +366,163 @@ const Project = () => {
       </motion.section>
 
       
-      <section className="right bg-slate-900/50 backdrop-blur-lg flex-grow h-full flex overflow-hidden">
-        <div className="explorer h-full w-44 bg-slate-800/60 border-r border-slate-700">
-          <div className="file-tree w-full p-2 flex flex-col gap-1">
-            {Object.keys(fileTree).map((fileName, key) => (
-              <Button
-                key={key}
-                onClick={() => {
-                  setOpenFiles((prev) =>
-                    prev.includes(fileName) ? prev : [...prev, fileName]
-                  );
-                  setCurrentFile(fileName);
-                }}
-                variant="ghost"
-                className="tree-element cursor-pointer p-2 flex items-center gap-2 text-blue-400 hover:bg-slate-700 rounded-lg transition-all"
-              >
-                <p className="font-medium text-sm">{fileName}</p>
-              </Button>
-            ))}
-          </div>
-        </div>
+<section className="right bg-slate-900/50 flex-grow flex flex-col">
 
-        {currentFile && (
-          <div className="code-editor flex-grow flex flex-col overflow-hidden">
-            <div className="top p-2 flex bg-slate-800/80 border-b border-slate-700 overflow-x-auto">
-              {openFiles.map((file) => (
-                <Button
-                  key={file}
-                  onClick={() => setCurrentFile(file)}
-                  variant="ghost"
-                  className={`open-file cursor-pointer p-2 px-4 flex items-center w-fit gap-2 rounded-lg ${
-                    currentFile === file
-                      ? "bg-slate-700 text-white"
-                      : "text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  <p className="font-medium text-sm">{file}</p>
-
-                </Button>
-              ))}
-            </div>
-
-            <div className="bottom flex-grow overflow-hidden relative">
-  {/* Toggle Button */}
-  <div className="absolute top-2 right-8 z-10 gap-2 flex">
-    <Button
-      size="sm"
-      variant="ghost"
-      className="bg-slate-700/50 hover:bg-slate-600 text-xs"
-      onClick={() => setIsPreview((prev) => !prev)}
-    >
-      {isPreview ? "Edit" : "Preview"}
+  
+  <div className="w-full flex justify-end p-3 border-b border-slate-700 bg-slate-800/60">
+    <Button variant="ghost" className="text-white" onClick={() => navigate(-1)}>
+      Back
     </Button>
-    
-     <Button
-    size="sm"
-    variant="default"
-    className="bg-blue-600 hover:bg-blue-500 text-xs"
-    onClick={() => {
-      sendMessage("file-update", {
-        fileName: currentFile,
-        content: fileTree[currentFile]?.content || "",
-      });
-      toast.success("File saved and shared!");
-    }}
-  >
-    Save
-  </Button>
-
   </div>
 
+  
+  <div className="flex flex-grow overflow-hidden">
 
-  {(() => {
-    const content = fileTree[currentFile]?.content || "";
-    const ext = currentFile.split(".").pop();
-
-    // If preview mode ON and content looks like code → show SyntaxHighlighter
-    const looksLikeCode =
-      /\n/.test(content) || /function|const|let|import|class|;|{/.test(content);
-
-    if (isPreview && looksLikeCode) {
-      return (
-        <SyntaxHighlighter
-          language={ext}
-          style={oneDark}
-          customStyle={{
-            margin: 0,
-            height: "100%",
-            overflow: "auto",
-            fontSize: "0.9rem",
-            background: "transparent",
+    
+    <div className="explorer w-48 bg-slate-800/60 border-r border-slate-700 p-2 overflow-y-auto">
+      {Object.keys(fileTree).map((fileName, i) => (
+        <Button
+          key={i}
+          variant="ghost"
+          className="w-full text-left text-blue-400 hover:bg-slate-700"
+          onClick={() => {
+            if (!openFiles.includes(fileName)) {
+              setOpenFiles((prev) => [...prev, fileName]);
+            }
+            setCurrentFile(fileName);
           }}
         >
-          {content}
-        </SyntaxHighlighter>
-      );
-    }
+          {fileName}
+        </Button>
+      ))}
+    </div>
 
-    // Default: editable textarea
-    return (
-      <textarea
-        value={content}
-        onChange={(e) =>
-          setFileTree({
-            ...fileTree,
-            [currentFile]: {
-              ...fileTree[currentFile],
-              content: e.target.value,
-            },
-          })
-        }
-        className="w-full h-full p-3 font-mono text-sm border-none outline-none resize-none bg-slate-900 text-slate-100"
-      />
-    );
-  })()}
-</div>
+    
+    {currentFile && (
+      <div className="editor flex-grow relative overflow-hidden">
 
+        
+        <div className="flex bg-slate-800/80 border-b border-slate-700 p-2 gap-2 overflow-x-auto">
+          {openFiles.map((file) => (
+            <Button
+              key={file}
+              variant="ghost"
+              className={`px-4 ${file === currentFile ? "bg-slate-700" : ""}`}
+              onClick={() => setCurrentFile(file)}
+            >
+              {file}
+            </Button>
+          ))}
+        </div>
+
+        
+        <div className="relative h-full overflow-auto">
+
+         
+          <div className="absolute right-5 top-3 flex gap-2 z-10">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="bg-slate-700"
+              onClick={() => setIsPreview((p) => !p)}
+            >
+              {isPreview ? "Edit" : "Preview"}
+            </Button>
+
+            <Button
+              size="sm"
+              className="bg-blue-600"
+              onClick={() => {
+                sendMessage("file-update", {
+                  fileName: currentFile,
+                  content: fileTree[currentFile].content,
+                });
+                toast.success("File saved!");
+              }}
+            >
+              Save
+            </Button>
           </div>
+
+          
+          {(() => {
+            const content = fileTree[currentFile]?.content ?? "";
+            const ext = currentFile.split(".").pop();
+
+            const isCode =
+              /\n/.test(content) || /function|const|import|class/.test(content);
+
+            if (isPreview && isCode) {
+              return (
+                <SyntaxHighlighter
+                  language={ext}
+                  style={oneDark}
+                  customStyle={{
+                    height: "100%",
+                    background: "transparent",
+                    fontSize: "14px",
+                    margin: 0,
+                  }}
+                >
+                  {content}
+                </SyntaxHighlighter>
+              );
+            }
+
+            return (
+              <textarea
+                value={content}
+                onChange={(e) =>
+                  setFileTree((prev) => ({
+                    ...prev,
+                    [currentFile]: { content: e.target.value },
+                  }))
+                }
+                className="w-full h-full bg-slate-900 text-white p-4 outline-none resize-none font-mono"
+              />
+            );
+          })()}
+
+        </div>
+      </div>
+    )}
+
+  </div>
+</section>
+
+
+      
+      <AnimatePresence>
+        {showRemoveDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.85 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.85 }}
+              className="bg-slate-900 p-6 rounded-xl border border-slate-700 w-96"
+            >
+              <h3 className="text-xl font-bold mb-4">Remove Collaborator</h3>
+              <p className="text-gray-300 mb-6">
+                Remove <span className="text-white">{removeUserEmail}</span>?
+              </p>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setShowRemoveDialog(false)}>
+                  Cancel
+                </Button>
+                <Button className="bg-red-600" onClick={confirmRemove}>
+                  Remove
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </section>
+      </AnimatePresence>
 
       
       <AnimatePresence>
@@ -425,49 +531,56 @@ const Project = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           >
             <motion.div
-              initial={{ scale: 0.8 }}
+              initial={{ scale: 0.85 }}
               animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-slate-900 text-white p-6 rounded-2xl w-96 max-w-full border border-slate-700 shadow-2xl"
+              exit={{ scale: 0.85 }}
+              className="bg-slate-900 p-6 rounded-xl border border-slate-700 w-96 max-h-[80vh] overflow-auto"
             >
-              <header className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Select User</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsModalOpen(false)}
-                >
+                <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)}>
                   <X />
                 </Button>
-              </header>
-              <div className="users-list flex flex-col gap-2 mb-16 max-h-96 overflow-auto">
-                {users.map((usr) => (
+              </div>
+
+              <input
+                type="text"
+                value={searchQuery}
+                placeholder="Search users..."
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full p-3 mb-4 bg-slate-800 border border-slate-600 rounded-lg outline-none"
+              />
+
+              
+              {(searchedUsers || [])
+                .filter(
+                  (usr) =>
+                    !((project?.users || []).some((u) => String(u._id) === String(usr._id)))
+                )
+                .map((usr) => (
                   <Card
                     key={usr._id}
                     onClick={() => handleUserClick(usr._id)}
-                    className={`cursor-pointer transition-all ${
-                      Array.from(selectedUserId).includes(usr._id)
+                    className={`cursor-pointer mb-2 ${
+                      selectedUserId.has(usr._id)
                         ? "bg-slate-700 border-slate-500"
-                        : "bg-slate-800/60 hover:bg-slate-700 border-slate-700"
+                        : "bg-slate-800 border-slate-700 hover:bg-slate-700"
                     }`}
                   >
                     <CardContent className="flex items-center gap-4 p-3">
-                      <div className="aspect-square w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-pink-500 to-purple-600 text-white">
-                        <i className="ri-user-fill"></i>
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-500 rounded-full flex items-center justify-center">
+                        <i className="ri-user-fill text-white"></i>
                       </div>
-                      <h1 className="font-medium text-slate-300">{usr.email}</h1>
+                      <span>{usr.email}</span>
                     </CardContent>
                   </Card>
                 ))}
-              </div>
-              <Button
-                onClick={addCollaborator}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-              >
-                Add Collaborator
+
+              <Button onClick={addCollaborator} className="w-full bg-blue-600 mt-4">
+                Add
               </Button>
             </motion.div>
           </motion.div>

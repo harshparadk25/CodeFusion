@@ -1,7 +1,7 @@
 import User from "../models/user.models.js";
 
 import { validationResult } from "express-validator";
-import { createUser, getAllUsers } from "../services/user.service.js";
+import { createUser, getAllUsers, searchUser, updateUserProfile } from "../services/user.service.js";
 import redisClient from "../services/redis.service.js";
 
 
@@ -84,3 +84,29 @@ export const getAllUsersController = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+export const searchController = async (req,res)=>{
+  try {
+    const { query } = req.query;
+    const loggedInUser = req.user;
+    if (!query || query.trim() === "") {
+      return res.status(200).json({ users: [] });
+    }
+    const users = await searchUser({query,loggedInUser});
+    res.status(200).json({users});
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({message: error.message});
+  }
+}
+
+export const updateProfileController = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const updateData = req.body;
+    const updatedUser = await updateUserProfile({ userId, updateData });
+    res.status(200).json({success: true, user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message, success: false });
+  }
+};  

@@ -2,99 +2,115 @@ import mongoose from "mongoose";
 import Project from "../models/project.model.js";
 
 
+export const createProject = async ({ name, userId }) => {
+  if (!name) throw new Error("Project name is required");
+  if (!userId) throw new Error("User ID is required");
 
-
-export const createProject = async ({name,userId}) => {
-    if(!name){
-        throw new Error("Project name is required");
-    }
-    if(!userId){
-        throw new Error("User ID is required");
-    }
-    let project;
-   try {
-    project = await Project.create({name,users:[userId]});
-   } catch (error) {
-    if (error.code === 11000) {
-        throw new Error("Project name must be unique");
-    } else {
-        throw error;
-    }
-    
-   }
-
+  try {
+    const project = await Project.create({
+      name,
+      owner: userId,
+      users: [userId]
+    });
     return project;
-}
-
-export const getAllProjectsByUserId = async({userId})=>{
-    if(!userId){
-        throw new Error("User ID is required");
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error("Project name must be unique");
     }
+    throw error;
+  }
+};
 
-    try {
-        const allProjects = await Project.find({ users: userId });
-        return allProjects;
-    } catch (error) {
-        throw error;
-    }
-}
 
-export const addUsersToProject = async({projectId, users,userId})=>{
-    if(!projectId || !users || users.length === 0){
-        throw new Error("Project ID and User IDs are required");
-    }
 
-     if (!mongoose.Types.ObjectId.isValid(projectId)) {
-        throw new Error("Invalid projectId")
-    }
+export const getAllProjectsByUserId = async ({ userId }) => {
+  if (!userId) throw new Error("User ID is required");
 
-     if (!Array.isArray(users) || users.some(userId => !mongoose.Types.ObjectId.isValid(userId))) {
-        throw new Error("Invalid userId(s) in users array")
-    }
+  const allProjects = await Project.find({ users: userId });
+  return allProjects;
+};
 
-     if (!mongoose.Types.ObjectId.isValid(userId)) {
-        throw new Error("Invalid userId")
-    }
 
-     const project = await Project.findOne({
-        _id: projectId,
-        users: userId
-    })
+export const addUsersToProject = async ({ projectId, users, userId }) => {
+  if (!projectId || !users || users.length === 0) {
+    throw new Error("Project ID and User IDs are required");
+  }
 
-    console.log("Project found:", project);
+  const project = await Project.findById(projectId);
+  if (!project) throw new Error("Project not found");
 
-    if(!project){
-        throw new Error("Project not found or you don't have permission to add users");
-    }
+  
+  if (project.owner.toString() !== userId.toString()) {
+    throw new Error("Only project owner can add users");
+  }
 
-    const updatedProject = await Project.findByIdAndUpdate(
-        projectId,
-        { $addToSet: { users: { $each: users } } },
-        { new: true }
-    );
+  const updated = await Project.findByIdAndUpdate(
+    projectId,
+    { $addToSet: { users: { $each: users } } },
+    { new: true }
+  );
 
-    console.log("Updated project:", updatedProject);
+  return updated;
+};
 
-    if (!updatedProject) {
-        throw new Error("Failed to add users to project");
-    }
-
-    return updatedProject;
-}
 
 
 export const getProjectById = async ({ projectId, userId }) => {
-    if (!projectId || !userId) {
-        throw new Error("Project ID and User ID are required");
-    }
+  if (!projectId || !userId) throw new Error("Project ID and User ID are required");
 
-    try {
-        const project = await Project.findOne({
-            _id: projectId,
-            users: userId
-        }).populate("users");
-        return project;
-    } catch (error) {
-        throw error;
-    }
+  const project = await Project.findOne({
+    _id: projectId,
+    users: userId
+  }).populate("users");
+
+  return project;
+};
+
+
+
+export const removeUsersFromProject = async ({ projectId, users, userId }) => {
+  if (!projectId || !users || users.length === 0) {
+    throw new Error("Project ID and User IDs are required");
+  }
+
+  const memberId = users[0];
+
+  const project = await Project.findById(projectId);
+  if (!project) throw new Error("Project not found");
+
+ 
+  if (project.owner.toString() !== userId.toString()) {
+    throw new Error("Only project owner can remove members");
+  }
+
+ 
+  if (memberId.toString() === userId.toString()) {
+    throw new Error("Owner cannot be removed from project");
+  }
+
+  if (!project.users.includes(memberId)) {
+    throw new Error("User is not a member of this project");
+  }
+
+  const updated = await Project.findByIdAndUpdate(
+    projectId,
+    { $pull: { users: memberId } },
+    { new: true }
+  ).populate("users");
+
+  return updated;
+};
+
+
+
+export const deleteProjectById = async ({ projectId, userId }) => {
+  const project = await Project.findById(projectId);
+  if (!project) throw new Error("Project not found");
+
+  if (project.owner.toString() !== userId.toString()) {
+    throw new Error("Only the project owner can delete this project");
+  }
+
+  await Project.findByIdAndDelete(projectId);
+  return { message: "Project deleted successfully" };
 };

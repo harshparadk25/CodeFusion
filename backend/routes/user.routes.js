@@ -18,7 +18,10 @@ router.post('/login',
     userController.loginUserController
 );
 
+router.put('/me', authMiddleware.authUser, userController.updateProfileController);
+
 router.get('/profile', authMiddleware.authUser, userController.getUserProfileController);
 router.get('/logout', authMiddleware.authUser, userController.logoutUserController);
 router.get('/all', authMiddleware.authUser, userController.getAllUsersController);
+router.get('/search', authMiddleware.authUser, userController.searchController);
 export default router;

@@ -1,215 +1,250 @@
-import React, { useState, useContext, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { UserContext } from "../context/user.context";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import React, { useEffect, useState, useContext } from "react";
 import axios from "../config/axios";
+import { UserContext } from "../context/user.context";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import FallingText from "../components/GSAPui/Falling";
+import LightRays from "../components/GSAPui/Light";
+import EditProfileModal from "../components/model/EditProfileModel";
 
-const Home = () => {
-  const { user } = useContext(UserContext);
-  const [open, setOpen] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [projects, setProjects] = useState([]);
-  const navigate = useNavigate();
-  const [openProfile, setOpenProfile] = useState(false);
+const Profile = () => {
+    const { user } = useContext(UserContext);
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [username, setUsername] = useState("");
+    const [bio, setBio] = useState("");
+    const [profession, setProfession] = useState("");
+    const [skills, setSkills] = useState([]);
+    const [openEditModal, setOpenEditModal] = useState(false);
+    const [showDialog, setShowDialog] = useState(false);
 
-  const handleCreateProject = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+    const navigate = useNavigate();
 
-    try {
-      await axios.post("/projects/create", { name: projectName });
-      toast.success("Project created successfully!");
-      setTimeout(() => {
-        setLoading(false);
-        setOpen(false);
-        setProjectName("");
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const response = await axios.get("/projects/all");
-        setProjects(response.data);
-      } catch (error) {
-        console.log(error);
-        toast.error("Failed to fetch projects");
-      }
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const res = await axios.get("/users/profile");
+                setProfile(res.data.user);
+                console.log(res.data.user);
+            } catch (err) {
+                toast.error("Failed to load profile");
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, []);
+
+    const handleLogout = async () => {
+        try {
+            await axios.get("/users/logout");
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            navigate("/login");
+            toast.success("Logged out successfully");
+        } catch (err) {
+            toast.error("Logout failed");
+        }
     };
-    fetchProjects();
-  }, []);
 
-  return (
-    <div className="relative min-h-screen overflow-hidden text-white">
+    const updateProfile = async (updatedData) => {
+        try {
+            const res = await axios.put("/users/me", updatedData);
+            setProfile(res.data.user);
+            toast.success("Profile updated successfully");
+        } catch (error) {
+            console.error("Profile update failed", error);
+            toast.error("Profile update failed");
+        }
+    }
 
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-br from-purple-900 via-black to-indigo-900 opacity-40"
-        animate={{ backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"] }}
-        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-        style={{ backgroundSize: "300% 300%" }}
-      />
+    if (loading || !profile) {
+        return (
+            <div className="min-h-screen flex justify-center items-center text-gray-300">
+                Loading profile...
+            </div>
+        );
+    }
 
+    return (
+        <div className="min-h-screen bg-[#0d1117] text-white relative overflow-hidden">
 
-      <div className="relative z-10">
-        <header className="flex justify-between items-center px-8 py-4 border-b border-gray-800">
-          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-            🚀 CodeFusion Dashboard
-          </h1>
-          <div onClick={() => setOpenProfile(true)} className="flex items-center gap-4">
-            <span className="text-white font-medium text-lg">
-              {user?.username}
-            </span>
-            <img
-              src={user?.avatar || "https://api.dicebear.com/7.x/identicon/svg"}
-              alt="avatar"
-              className="w-10 h-10 rounded-full border border-gray-700"
-            />
-          </div>
-
-        </header>
-
-        <main className="p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-100">Your Projects</h2>
-            <Button
-              onClick={() => setOpen(true)}
-              className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl shadow-lg hover:scale-105 transition"
-            >
-              + New Project
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-            {projects && projects.length > 0 ? (
-              projects.map((project) => (
-                <motion.div
-                  key={project._id}
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                >
-                  <Card onClick={() => navigate(`/projects`, { state: { project } })} className="bg-gray-900/80 border border-purple-800/50 shadow-lg hover:shadow-purple-500/30 transition rounded-2xl">
-                    <CardContent className="p-5 flex flex-col gap-3">
-                      <h3 className="text-lg font-bold text-purple-300">{project.name}</h3>
-                      <p className="text-sm text-gray-300 flex items-center gap-2">
-                        <i className="ri-user-line"></i>
-                        {project.users?.length || 0} members
-                      </p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))
-            ) : (
-              <p className="text-gray-400">No projects yet. Create one!</p>
-            )}
-          </div>
-        </main>
-
-        <Dialog open={open} onOpenChange={setOpen}>
-          <AnimatePresence>
-            {open && (
-              <DialogContent>
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-gray-950/90 backdrop-blur-xl border border-gray-800 p-6 rounded-2xl shadow-xl max-w-md w-full"
-                >
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-purple-300">
-                      ✨ Create New Project
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateProject} className="space-y-4 mt-4">
-                    <Input
-                      type="text"
-                      placeholder="Enter project name"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      className="bg-gray-900 border-gray-700 text-white"
-                      required
-                    />
-                    <Button
-                      type="submit"
-                      className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2 rounded-xl shadow-lg hover:scale-105 transition"
-                      disabled={loading}
-                    >
-                      {loading ? "Creating..." : "Create Project"}
-                    </Button>
-                  </form>
-                </motion.div>
-              </DialogContent>
-            )}
-          </AnimatePresence>
-        </Dialog>
-
-        <Dialog open={openProfile} onOpenChange={setOpenProfile}>
-          <DialogContent>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.3 }}
-              className="bg-gray-950/90 backdrop-blur-xl border border-gray-800 p-6 rounded-2xl shadow-xl max-w-md w-full"
-            >
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-purple-300">
-                  👤 User Profile
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="flex items-center gap-3 my-4">
-                <img
-                  src={user?.avatar || "https://api.dicebear.com/7.x/identicon/svg"}
-                  alt="avatar"
-                  className="w-12 h-12 rounded-full border border-gray-700"
+            {/* 🌟 LIGHT RAYS — Always Behind */}
+            <div className="absolute inset-1 z-10 pointer-events-none">
+                <LightRays
+                    raysOrigin="top-center"
+                    raysColor="#00ffff"
+                    raysSpeed={1.1}
+                    lightSpread={0.8}
+                    rayLength={2.0}
+                    followMouse={true}
+                    mouseInfluence={0.5}
+                    noiseAmount={0.1}
+                    distortion={0.05}
+                    className="w-full h-full"
                 />
-                <span className="text-white font-medium text-lg">
-                  {user?.username}
-                </span>
-              </div>
+            </div>
 
-              <div className="flex justify-end mt-6">
-                <Button
-                  onClick={async () => {
-                    try {
-                      await axios.get("/users/logout")
-                        .then(() => {
-                          localStorage.removeItem("token");
-                          localStorage.removeItem("user");
-                          toast.success("Logged out successfully");
-                          setOpenProfile(false);
-                          navigate("/login");
-                        })
-                        .catch((err) => {
-                          toast.error(err.response?.data?.message || "Logout failed");
-                        });
-                    } catch (err) {
-                      toast.error(err.response?.data?.message || "Logout failed");
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+            
+            <header className="w-full fixed top-0 left-0 z-50 bg-[#161b22]/90 backdrop-blur-sm border-b border-gray-800 px-6 py-4 flex justify-between items-center">
+
+
+                
+                <span
+                    onClick={() => navigate("/")}
+                    className="text-2xl font-bold cursor-pointer text-transparent bg-clip-text  bg-gradient-to-r from-purple-400 to-indigo-400"
                 >
-                  Logout
-                </Button>
-              </div>
-            </motion.div>
-          </DialogContent>
-        </Dialog>
+                    CodeFusion
+                </span>
 
-      </div>
-    </div>
-  );
+                
+                <div className="flex items-center gap-6">
+
+                    
+                    <div
+                        className="flex items-center gap-2 cursor-pointer group"
+                        onClick={() => navigate("/dashboard")}
+                    >
+                        <span className="text-gray-300 font-semibold text-md group-hover:text-white transition">
+                            Dashboard
+                        </span>
+                    </div>
+
+                   
+                    <div
+                        className="flex items-center gap-2 cursor-pointer group"
+                        onClick={() => setShowDialog(true)}
+                    >
+                        <span className="text-gray-300 font-semibold text-md group-hover:text-red-400 transition">
+                            Logout
+                        </span>
+
+                        <img
+                            src={profile.profilePicture}
+                            className="w-8 h-8 rounded-full border border-gray-700 group-hover:border-red-400 transition"
+                            alt="avatar"
+                        />
+                    </div>
+
+                </div>
+
+            </header>
+
+           
+            <div className="relative z-10 px-6 py-12 flex justify-center pt-28">
+
+                <div className="w-full max-w-5xl">
+
+                   
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+
+                        <img
+                            src={profile.profilePicture}
+                            alt="avatar"
+                            className="w-32 h-32 rounded-full border border-gray-600 shadow-lg"
+                        />
+
+                        <div>
+                            <h1 className="text-3xl font-bold">{profile.username}</h1>
+                            <p className="text-gray-400 text-lg mt-1">{profile.profession}</p>
+                            <p className="text-gray-400 text-sm mt-2">{profile.email}</p>
+
+                            <Button onClick={() => setOpenEditModal(true)} className="mt-4 bg-gray-800 hover:bg-gray-700 border border-gray-600">
+                                Edit Profile
+                            </Button>
+                        </div>
+
+                    </div>
+
+                    <div className="border-b border-gray-800 my-8"></div>
+
+                    
+                    <section className="mb-10">
+                        <h2 className="text-xl font-semibold text-gray-200 mb-3">Bio</h2>
+                        <p className="text-gray-300">{profile.bio || "No bio added yet."}</p>
+                    </section>
+
+                    <div className="border-b border-gray-800 my-8"></div>
+
+                    
+
+                   
+                    <section className="my-12">
+                        <h2 className="text-xl font-semibold text-gray-200 mb-6">Skills</h2>
+
+                        {profile.skills?.length > 0 ? (
+                            <div className="relative w-full h-[150px] md:h-[180px] overflow-hidden rounded-lg border border-gray-800 bg-[#0d1117]/50 backdrop-blur-sm flex items-center justify-center">
+
+                                <FallingText
+                                    text={profile.skills.join("   ")}
+                                    highlightWords={profile.skills}
+                                    highlightClass="highlighted"
+                                    trigger="hover"
+                                    backgroundColor="transparent"
+                                    wireframes={false}
+                                    gravity={0.4}
+                                    fontSize="1.6rem"
+                                    mouseConstraintStiffness={0.8}
+                                />
+
+                            </div>
+                        ) : (
+                            <p className="text-gray-400">No skills added yet.</p>
+                        )}
+                    </section>
+
+
+
+                </div>
+            </div>
+            <EditProfileModal
+                isOpen={openEditModal}
+                onClose={() => setOpenEditModal(false)}
+                username={username}
+                bio={bio}
+                profession={profession}
+                skills={skills}
+                setUsername={setUsername}
+                setBio={setBio}
+                setProfession={setProfession}
+                setSkills={setSkills}
+                onSave={updateProfile}
+            />
+
+            
+            {showDialog && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-gray-900 p-6 rounded-xl border border-gray-700 shadow-2xl w-96 animate-fadeIn">
+                        <h3 className="text-xl font-bold mb-4 text-white">
+                            Confirm Logout
+                        </h3>
+                        <p className="text-gray-300">
+                            Are you sure you want to logout?
+                        </p>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                onClick={() => setShowDialog(false  
+)}                                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition"
+                            >
+                                Cancel
+                            </button>                        
+                             <button
+                                onClick={handleLogout}  
+                                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition"      
+                            >
+                                Logout
+                            </button>       
+                        </div>
+                    </div>
+                </div>  
+                                )}
+
+
+        </div>
+
+    );
 };
 
-export default Home;
+export default Profile;

@@ -20,7 +20,29 @@ const userSchema = new mongoose.Schema({
   type: String,
   required: true,
   select: false,
-}
+  },
+  profession:{
+    type: String,
+    trim: true,
+    default: "",
+  },
+  bio:{
+    type: String,
+    trim: true,
+    default: "",
+    maxlenghth: 250,
+  },
+  skills:{
+    type: [String],
+    default: []
+  },
+  profilePicture:{
+    type: String,
+    default: function(){
+      const seed = this.username || 'default';
+      return `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(seed)}`
+    }
+  },
 
 });
 
@@ -37,7 +59,7 @@ userSchema.statics.isValidPassword = async function (password, hashedPassword) {
 
 
 userSchema.methods.generateAuthToken = function () {
-  return jwt.sign({_id: this._id, email: this.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign({_id: this._id, email: this.email }, process.env.JWT_SECRET, { expiresIn: "2d" });
 };
 
 const User = mongoose.model("user", userSchema);
