@@ -11,10 +11,13 @@ import repoRoutes from './routes/repo.routes.js';
 
 const app = express();
 
+
+
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
 
 app.use('/users', userRoutes);
 app.use('/projects', projectRoutes);
@@ -22,8 +25,10 @@ app.use('/ai', aiRoutes);
 app.use('/repo', repoRoutes);
 app.use('/messages', messageRoutes); 
 
-app.use(express.urlencoded({ extended: true }));
+
 
 app.get('/', (req, res) => res.send('Hello world!!'));
+app.get("/ping", (req, res) => res.send("ok"));
+
 
 export default app;
