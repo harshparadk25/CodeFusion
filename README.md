@@ -139,19 +139,6 @@ MongoDB errors → Ensure MONGO_URI is correct and Atlas IP whitelist includes 0
 📜 License
 MIT License © 2025
 
-yaml
-Copy code
-
----
-
-⚡ This version is **all-in-one**, no sensitive details, and safe to commit.  
-
-Want me to also add **Live Demo badges/links** (Frontend + Backend) at the top so anyone can directly click and test your app?
 
 
 
-
-
-
-
-Ask ChatGPT
