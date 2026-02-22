@@ -4,25 +4,21 @@ import http from 'http';
 import app from './app.js';
 import connect from './db/db.js';
 import { Server } from 'socket.io';
-import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import Project from './models/project.model.js';
-import { generateResult } from './services/ai.service.js';
 import { saveAIMessage, saveFileMessage, saveTextMessage } from './services/message.services.js';
 import { setIO } from './socket.js';
 import { initBucket } from './services/gridfs.services.js';
 
-app.use(
-  cors({
-    origin: [process.env.ADMIN_URL, process.env.CLIENT_URL],
-    credentials: true,
-  })
-);
-
 const port = process.env.PORT || 3000;
 
 const server = http.createServer(app);
+
+// Start listening immediately so the platform detects the app is alive
+server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
+
+// Connect to DB in parallel — mongoose buffers operations until connected
 connect();
 
 mongoose.connection.once('open', () => {
@@ -110,6 +106,7 @@ io.on('connection', (socket) => {
       
       if (message.includes('@ai')) {
         const prompt = message.replace('@ai', '').trim();
+        const { generateResult } = await import('./services/ai.service.js');
         const result = await generateResult(prompt);
 
         
@@ -180,5 +177,4 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
 export default server;

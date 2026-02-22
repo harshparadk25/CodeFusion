@@ -1,20 +1,27 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Route, Routes, BrowserRouter, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import Login from "../screens/Login";
-import Register from "../screens/Register";
-import Dashboard from "../screens/Dashboard";
 import ProtectedRoutes from "../config/protect";
-import Project from "../screens/Project";
-import Home from "../screens/Home";
-import ProjectDetail from "../screens/ProjectDetail";
-import Content from "../screens/Content";
+
+// Lazy load all screens for code splitting
+const Login = lazy(() => import("../screens/Login"));
+const Register = lazy(() => import("../screens/Register"));
+const Dashboard = lazy(() => import("../screens/Dashboard"));
+const Project = lazy(() => import("../screens/Project"));
+const Home = lazy(() => import("../screens/Home"));
+const ProjectDetail = lazy(() => import("../screens/ProjectDetail"));
+const Content = lazy(() => import("../screens/Content"));
+
+const SuspenseFallback = () => (
+  <div className="flex items-center justify-center h-screen">Loading...</div>
+);
 
 const AnimatedRoutes = () => {
   const location = useLocation();
 
   return (
     <AnimatePresence mode="wait">
+      <Suspense fallback={<SuspenseFallback />}>
       <Routes location={location} key={location.pathname}>
         <Route
           path="/"
@@ -123,6 +130,7 @@ const AnimatedRoutes = () => {
 
 
       </Routes>
+      </Suspense>
     </AnimatePresence>
   );
 };
